@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
 let SpeechTranscriber: any = {};
-// শুধুমাত্র native platform এবং development build এ লাইব্রেরি লোড করব, Expo Go তে না
 if (Platform.OS !== 'web' && Constants.appOwnership !== 'expo') {
   try {
     SpeechTranscriber = require('expo-speech-transcriber');
@@ -16,14 +15,14 @@ export const useVoiceRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isFinal, setIsFinal] = useState(false);
 
   const isExpoGo = Constants.appOwnership === 'expo';
   const canUseVoice = Platform.OS !== 'web' && !isExpoGo && SpeechTranscriber.useRealTimeTranscription;
 
-  // নেটিভ প্ল্যাটফর্মে এবং development build এ রিয়েল টাইম ট্রান্সক্রিপশন
-  const { text, error: transcriptionError } = canUseVoice
-    ? SpeechTranscriber.useRealTimeTranscription?.() ?? { text: '', error: null }
-    : { text: '', error: null };
+  const { text, error: transcriptionError, isFinal: final } = canUseVoice
+    ? SpeechTranscriber.useRealTimeTranscription?.() ?? { text: '', error: null, isFinal: false }
+    : { text: '', error: null, isFinal: false };
 
   useEffect(() => {
     if (canUseVoice && transcriptionError) {
@@ -35,8 +34,9 @@ export const useVoiceRecognition = () => {
   useEffect(() => {
     if (canUseVoice) {
       setTranscript(text || '');
+      setIsFinal(final || false);
     }
-  }, [text]);
+  }, [text, final]);
 
   const requestPermissions = async () => {
     if (!canUseVoice) {
@@ -74,7 +74,8 @@ export const useVoiceRecognition = () => {
     if (!hasPermission) return;
 
     try {
-      await SpeechTranscriber.recordRealTimeAndTranscribe();
+      // বাংলা ভাষায় স্পিচ রিকগনিশনের জন্য লোকেল সেট করুন
+      await SpeechTranscriber.recordRealTimeAndTranscribe({ locale: 'bn-BD' });
       setIsListening(true);
     } catch (err: any) {
       setError(err.message || 'শোনা শুরু করতে সমস্যা');
@@ -97,5 +98,6 @@ export const useVoiceRecognition = () => {
     error,
     startListening,
     stopListening,
+    isFinal,
   };
 };

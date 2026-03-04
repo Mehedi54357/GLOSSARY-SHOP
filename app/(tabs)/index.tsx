@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useVoiceRecognition } from '../../hooks/UseVoiceRecognition';
-import { convertDialectToStandard, getAllProducts, openDatabase, Product, setupDatabase } from '../../services/database';
+import { addProduct, convertDialectToStandard, getAllProducts, openDatabase, Product, setupDatabase } from '../../services/database';
 
 export default function HomeScreen() {
   const [db, setDb] = useState<any>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const { isListening, transcript, error, startListening, stopListening } = useVoiceRecognition();
+  const { isListening, transcript, error, startListening, stopListening, isFinal } = useVoiceRecognition();
   const [convertedText, setConvertedText] = useState('');
+  const [commandFeedback, setCommandFeedback] = useState('');
 
   useEffect(() => {
     const initDb = async () => {
@@ -19,11 +20,15 @@ export default function HomeScreen() {
     initDb();
   }, []);
 
+  // যখন ভয়েস ইনপুট শেষ হয় (isFinal true), তখন কনভার্ট ও কমান্ড হ্যান্ডল করুন
   useEffect(() => {
-    if (transcript && db) {
-      convertDialectToStandard(db, transcript).then(setConvertedText);
+    if (isFinal && transcript && db) {
+      convertDialectToStandard(db, transcript).then(converted => {
+        setConvertedText(converted);
+        handleVoiceCommand(converted);
+      });
     }
-  }, [transcript, db]);
+  }, [isFinal, transcript, db]);
 
   const loadProducts = async (database: any) => {
     const allProducts = await getAllProducts(database);
@@ -35,6 +40,49 @@ export default function HomeScreen() {
       stopListening();
     } else {
       startListening();
+    }
+  };
+
+  // ভয়েস কমান্ড পার্স করার ফাংশন
+  const handleVoiceCommand = async (text: string) => {
+    if (!db) return;
+    
+    const words = text.trim().split(/\s+/);
+    if (words.length < 2) {
+      setCommandFeedback('দুঃখিত, সঠিক ফরম্যাটে বলুন। যেমন: "যোগ চাল" অথবা "যোগ চাল ৫ ১০০"');
+      return;
+    }
+
+    const command = words[0]; // প্রথম শব্দ কমান্ড
+    const rest = words.slice(1);
+
+    if (command === 'যোগ' || command === 'add') {
+      // প্রোডাক্ট যোগ করার চেষ্টা
+      let name = '';
+      let quantity = 1;
+      let price = 0;
+
+      if (rest.length === 1) {
+        name = rest[0];
+      } else if (rest.length >= 3) {
+        name = rest[0];
+        quantity = parseInt(rest[1]) || 1;
+        price = parseFloat(rest[2]) || 0;
+      } else {
+        setCommandFeedback('দুঃখিত, সঠিক ফরম্যাটে বলুন: "যোগ চাল" অথবা "যোগ চাল ৫ ১০০"');
+        return;
+      }
+
+      try {
+        await addProduct(db, { name, quantity, price });
+        setCommandFeedback(`✅ "${name}" প্রোডাক্টটি যোগ করা হয়েছে (পরিমাণ: ${quantity}, মূল্য: ৳${price})`);
+        loadProducts(db); // লিস্ট রিলোড
+      } catch (error) {
+        setCommandFeedback('❌ প্রোডাক্ট যোগ করতে সমস্যা হয়েছে');
+      }
+    }
+    else {
+      setCommandFeedback('অজানা কমান্ড। বলুন "যোগ চাল" বা "যোগ চাল ৫ ১০০"');
     }
   };
 
@@ -58,6 +106,12 @@ export default function HomeScreen() {
             <Text style={styles.transcript}>{transcript}</Text>
             <Text style={styles.label}>সাধারণ বাংলায়:</Text>
             <Text style={styles.converted}>{convertedText}</Text>
+          </View>
+        ) : null}
+
+        {commandFeedback ? (
+          <View style={styles.feedbackContainer}>
+            <Text style={styles.feedback}>{commandFeedback}</Text>
           </View>
         ) : null}
       </View>
@@ -122,6 +176,18 @@ const styles = StyleSheet.create({
   converted: {
     fontSize: 16,
     color: '#007AFF',
+  },
+  feedbackContainer: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#e0ffe0',
+    borderRadius: 5,
+    width: '100%',
+  },
+  feedback: {
+    textAlign: 'center',
+    color: '#006600',
+    fontWeight: '600',
   },
   productList: {
     flex: 1,

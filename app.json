@@ -40,7 +40,9 @@
           }
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-audio",
+      "expo-speech-transcriber"
     ],
     "experiments": {
       "typedRoutes": true,
