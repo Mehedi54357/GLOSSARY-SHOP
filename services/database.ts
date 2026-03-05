@@ -157,3 +157,33 @@ export const convertDialectToStandard = async (db: SQLite.SQLiteDatabase, dialec
 
 export { Product };
 
+export const addProductByVoice = async (
+  db: SQLite.SQLiteDatabase,
+  voiceText: string
+) => {
+  try {
+
+    const words = voiceText.trim().split(" ");
+
+    if (words.length < 2) return;
+
+    const command = words[0];
+    const productName = words[1];
+
+    if (command === "যোগ") {
+
+      await db.runAsync(
+        'INSERT INTO products (name, quantity, price) VALUES (?, ?, ?);',
+        productName,
+        1,
+        0
+      );
+
+      console.log("Voice দিয়ে product add হয়েছে:", productName);
+
+    }
+
+  } catch (error) {
+    console.error("Voice product add করতে সমস্যা:", error);
+  }
+};
